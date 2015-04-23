@@ -2,6 +2,18 @@ use Test::Most;
 use HTTP::Request::Common;
 
 BEGIN {
+  package MyApp::Role::Test;
+
+  use Moose::Role;
+
+  sub TO_JSON { 'json' }
+
+  package MyApp::Role::TestOne;
+
+  use Moose::Role;
+
+  sub TO_JSON_2 { 'json2' }
+
   package MyApp::Form::Email;
 
   use HTML::FormHandler::Moose;
@@ -58,6 +70,7 @@ BEGIN {
 
   MyApp->config(
     'Controller::Root' => {namespace => ''},
+    'Model::Form' => { roles => ['MyApp::Role::Test', 'MyApp::Role::TestOne'] },
     'Model::Form::Email' => { aaa => 1000 }
   );
   
@@ -72,6 +85,8 @@ use Catalyst::Test 'MyApp';
   ok my $email = $c->model('Form::Email', action_from=>$link,bbb=>2000);
   is $email->aaa, 1000;
   is $email->bbb, 2000;
+  is $email->TO_JSON, 'json';
+  is $email->TO_JSON_2, 'json2';
   ok $email->ctx;
   ok $email->process(params=>{email=>'jjn1056@yahoo.com'});
   ok !$email->process(params=>{email=>'jjn1056oo.com'});

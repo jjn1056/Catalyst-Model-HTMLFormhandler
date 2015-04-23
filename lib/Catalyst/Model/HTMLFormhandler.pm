@@ -8,6 +8,8 @@ with 'Catalyst::Component::ApplicationAttribute';
 
 our $VERSION = '0.001';
 
+has 'roles' => (is=>'ro', isa=>'ArrayRef', predicate=>'has_roles');
+
 has 'form_namespace' => (
   is=>'ro',
   required=>1,
@@ -39,11 +41,13 @@ has 'form_packages' => (
 
 sub build_model_adaptor {
   my ($self, $model_package, $form_package) = @_;
+  my $roles = join( ',', map { "'$_'"} @{$self->roles||[]}) if $self->has_roles;
 
   my $package = "package $model_package;\n" . q(
   
   use Moose;
-  use ). $form_package . q(;
+  use Moose::Util;
+  use ). $form_package . q! ;
   extends 'Catalyst::Model';
 
   sub ACCEPT_CONTEXT {
@@ -62,19 +66,20 @@ sub build_model_adaptor {
     return $c->stash->{$id} ||= do {
       my $form = $self->_build_per_request_form(%args, %config_args, ctx=>$c);
       $form->process(params=>$c->req->body_data) if
-        $c->req->method=~m/post/i && !$no_auto_process;
+        $c->req->method=~m/post/i && \!$no_auto_process;
       return $form;
     };
   }
 
   sub _build_per_request_form {
     my ($self, %args) = @_;
-    my $form = ). $form_package . q(->new(%args);
+    my $composed = Moose::Util::with_traits( '! .$form_package. q!' , (! .$roles.q!));
+    my $form = $composed->new(%args);
   }
 
   __PACKAGE__->meta->make_immutable;
 
-  );
+  !;
 
   eval $package or die $@;
 }
