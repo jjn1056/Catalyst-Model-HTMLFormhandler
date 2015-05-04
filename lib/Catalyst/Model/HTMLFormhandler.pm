@@ -2,13 +2,27 @@ package Catalyst::Model::HTMLFormhandler;
 
 use Moose;
 use Module::Pluggable::Object;
+use Moose::Util::TypeConstraints ();
 
 extends 'Catalyst::Model';
 with 'Catalyst::Component::ApplicationAttribute';
 
-our $VERSION = '0.001';
+our $VERSION = '0.003';
 
-has 'roles' => (is=>'ro', isa=>'ArrayRef', predicate=>'has_roles');
+has 'roles' => (
+  is=>'ro',
+  isa=>'ArrayRef',
+  predicate=>'has_roles');
+
+has 'body_method' => (
+  is=>'ro',
+  isa=> Moose::Util::TypeConstraints::enum([qw/body_data body_parameters/]),
+  required=>1,
+  default=>'body_data');
+
+has 'schema_model_name' => (is=>'ro',
+  isa=>'Str',
+  predicate=>'has_schema_model_name');
 
 has 'form_namespace' => (
   is=>'ro',
@@ -39,6 +53,8 @@ has 'form_packages' => (
     return \@forms;
   }
 
+has 'no_auto_process' => (is=>'ro', isa=>'Bool', required=>1, default=>0);
+
 sub build_model_adaptor {
   my ($self, $model_package, $form_package) = @_;
   my $roles = join( ',', map { "'$_'"} @{$self->roles||[]}) if $self->has_roles;
@@ -51,24 +67,74 @@ sub build_model_adaptor {
   extends 'Catalyst::Model';
 
   sub ACCEPT_CONTEXT {
-    my ($self, $c, %args) = @_;
+    my ($self, $c, @args) = @_;
     my $id = '__'. ref $self;
     my %config_args = %$self;
 
+    # If there are odd args, that means the first one is either the item object
+    # or item_id (assuming someone is using the DBIC model trait.
+    my %args = ();
+    if(scalar(@args) % 2) {
+      # args are odd, so shift off the first one and figure it out.
+      my $item_proto = shift @args;
+      %args = @args;
+      if(ref $item_proto eq 'HASH') {
+        $args{params} = $item_proto;
+      } elsif(ref $item_proto) {
+        $args{item} = $item_proto;
+      } else {
+        $args{item_id} = $item_proto;
+      }
+    } else {
+      %args = @args;
+    }
+
     #If an action arg is passed and its a Catalyst::Action, make it a URL
     if(my $action = delete $args{action_from}) {
-      $args{action} = ref $action ? $c->uri_for($action) : $c->uri_for_action($action);
+      my @action = ref $action eq 'ARRAY' ? @$action : ($action);
+      $args{action} = ref $action ? $c->uri_for(@action) : $c->uri_for_action(@action);
+    }
+
+    my $set = 0;
+    unless($args{action}) {
+      foreach my $action ($c->controller->get_action_methods) {
+        my @attrs =  map {($_ =~m/^FormModelTarget\((.+)\)$/)[0]} @{$action->attributes||[]};
+        foreach my $attr(@attrs) {
+          my @parts = (@{$c->req->captures}, @{$c->req->args});
+          $set=$c->uri_for($c->controller->action_for($action), (scalar @parts ? \@parts : ())) if ref($self) =~/$attr$/;
+        }
+      }
+    }
+
+    $args{action} = $set if $set;
+
+    if(my $form = $c->stash->{$id}) {
+      $form->process( %args ) if keys(%args);
+      return $form;
+    }
+
+    #If there is a schema model name use it
+    ! .($self->has_schema_model_name ? 
+      '$args{schema} = $c->model("'.$self->schema_model_name..'")': ''). q!
+    
+    # If its a POST, set the request params (you can always override 
+    # later.
+    if($c->req->method=~m/post/i) {
+      $args{params} = $c->req->! .$self->body_method. q! unless exists $args{params};
+      $args{posted} = 1 unless $args{posts};
     }
 
     my $no_auto_process = exists $args{no_auto_process} ?
-    delete($args{no_auto_process}) : 0;
+    delete($args{no_auto_process}) : ! .$self->no_auto_process. q!;
 
-    return $c->stash->{$id} ||= do {
+    $c->stash->{$id} ||= do {
       my $form = $self->_build_per_request_form(%args, %config_args, ctx=>$c);
-      $form->process(params=>$c->req->body_data) if
+      $form->process() if
         $c->req->method=~m/post/i && \!$no_auto_process;
-      return $form;
+      $form;
     };
+
+    return $c->stash->{$id};
   }
 
   sub _build_per_request_form {
@@ -181,15 +247,24 @@ the form model:
 
      my $email = $c->model('Form::Email', bbb=>2000);
 
-Additional args should be in the form of a hash, as in the above example.
+Additional args should be in the form of a hash, as in the above example OR you can
+pass a single argument which is either an object, hashref or id followed by a hash
+of remaining arguements.  These first argument gets set to the item or item_id
+since its common to need:
+
+    my $email = $c->model('Form::Email', $dbic_email_row, %args);
+
+Or if its a HashRef, these are set to the params for processing.
 
 The generated proxy will also add the ctx argument based on the current value of
 $c, although using this may not be a good way to build well, decoupled applications.
+It also will add the schema argument if you set a schema_model_name.
 
 We offer two additional bit of useful suger:
 
 If you pass argument 'action_from' with a value of an action object or an action 
-private name that will set the form action value.
+private name that will set the form action value.  If 'action_from' is an arrayref
+we dereference it when building the url.
 
 By default if the request is a POST, we will process the request arguments and
 return a form object that you can test for validity.  If you don't want this
@@ -207,9 +282,27 @@ standard L<Catalyst> configuration.
 This is the target namespace that L<Module::Pluggable> uses to look for forms.
 It defaults to 'MyApp::Form' (where 'MyApp' is you application namespace).
 
+=head2 schema_model_name
+
+The name of your DBIC Schema model (if you have one).  If you set this, we will
+automatically instantiate your form classes with as schema => $model argument.
+Useful if you are using L<HTML::FormHandler::Model::DBIC>.
+
 =head2 roles
 
 A list of L<Moose::Role>s that get applied automatically to each form model.
+
+=head2 post_method
+
+This is the name of the method called on L<Catalyst::Request> used to access any
+POSTed data.  Required field, the options are 'body_data' and 'body_parameters.
+The default is 'body_data'.
+
+=head2 no_auto_process
+
+By default when createing the perrequest form if the request is a POST we
+just go ahead and process those args.  Setting this to true will disable
+this behavior globally if you prefer more control.
 
 =head1 SPECIAL ARGUMENTS
 
@@ -219,6 +312,20 @@ influence how the form object is setup.
 =head2 no_auto_process
 
 Turns off the call to ->process when the request is a POST.
+
+=head2 action_from
+
+Shortcut to create the action value of the form.  If an object, we set 'action'
+from $c->uri_for($object).  If its an arrayref from $c->uri_for( @$action_from).
+
+=head1 ACTION ATTRIBUTES.
+
+=head2 FormModelTarget( $model)
+
+When used on an action, sets that action as the target of the form action.  This
+is a bit experimental.  We get any needed captures and arguments from the current
+request, this this only works if the target action has the same number of needed
+args and captures.
 
 =head1 AUTHOR
  

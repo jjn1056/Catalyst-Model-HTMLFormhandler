@@ -65,6 +65,17 @@ BEGIN {
 
   $INC{'MyApp/Controller/Root.pm'} = __FILE__;
 
+  package MyApp::Controller::Example;
+  use base 'Catalyst::Controller';
+
+  sub get_form :GET Path('') Args(0) {
+    my ($self, $c) = @_;
+  }
+
+  sub post_form :POST Path('') Args(0) FormModelTarget(Form::Email) {
+    my ($self, $c) = @_;
+  }
+
   package MyApp;
   use Catalyst;
 
@@ -90,11 +101,18 @@ use Catalyst::Test 'MyApp';
   ok $email->ctx;
   ok $email->process(params=>{email=>'jjn1056@yahoo.com'});
   ok !$email->process(params=>{email=>'jjn1056oo.com'});
+  ok $c->model('Form::Email', {email=>'jjn1056@yahoo.com'})->is_valid;
+  ok !$c->model('Form::Email', {email=>'jjn1056oo.com'})->is_valid;
   is $email->action, 'http://localhost/form';
 }
 
 {
-  ok my $res = request POST '/test_process' , [email=>'jjn1056@yahoo.com'];
+  my ($res, $c) = ctx_request POST '/example' , [email=>'jjn1056@yahoo.com'];
+  ok my $email = $c->model('Form::Email', (bless {}, 'foo'), bbb=>2000);
+  ok $email->item->isa('foo');
+  ok $email->is_valid;
+  is $email->values->{email}, 'jjn1056@yahoo.com';
+  is $email->action, 'http://localhost/example';
 }
 
 done_testing;
