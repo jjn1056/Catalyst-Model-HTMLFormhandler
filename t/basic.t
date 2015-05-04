@@ -1,5 +1,6 @@
 use Test::Most;
 use HTTP::Request::Common;
+use Scalar::Util qw/refaddr/;
 
 BEGIN {
   package MyApp::Role::Test;
@@ -113,6 +114,14 @@ use Catalyst::Test 'MyApp';
   ok $email->is_valid;
   is $email->values->{email}, 'jjn1056@yahoo.com';
   is $email->action, 'http://localhost/example';
+  is refaddr($email), refaddr(my $e2 = $c->model('Form::Email'));
+
+  ok $email->is_valid;
+  ok $e2->is_valid;
+
+  ok $c->model('Form::Email')->is_valid;
+  ok $c->model('Form::Email::IsValid');
+  ok !$c->model('Form::Email::IsValid', {email=>'asdasd'});
 }
 
 done_testing;

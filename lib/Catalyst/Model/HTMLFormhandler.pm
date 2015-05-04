@@ -3,11 +3,12 @@ package Catalyst::Model::HTMLFormhandler;
 use Moose;
 use Module::Pluggable::Object;
 use Moose::Util::TypeConstraints ();
+use Catalyst::Utils;
 
 extends 'Catalyst::Model';
 with 'Catalyst::Component::ApplicationAttribute';
 
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 has 'roles' => (
   is=>'ro',
@@ -56,7 +57,7 @@ has 'form_packages' => (
 has 'no_auto_process' => (is=>'ro', isa=>'Bool', required=>1, default=>0);
 
 sub build_model_adaptor {
-  my ($self, $model_package, $form_package) = @_;
+  my ($self, $model_package, $form_package, $model_name) = @_;
   my $roles = join( ',', map { "'$_'"} @{$self->roles||[]}) if $self->has_roles;
 
   my $package = "package $model_package;\n" . q(
@@ -95,6 +96,11 @@ sub build_model_adaptor {
       $args{action} = ref $action ? $c->uri_for(@action) : $c->uri_for_action(@action);
     }
 
+    if(my $form = $c->stash->{$id}) {
+      $form->process( %args ) if keys(%args);
+      return $form;
+    }
+
     my $set = 0;
     unless($args{action}) {
       foreach my $action ($c->controller->get_action_methods) {
@@ -105,13 +111,7 @@ sub build_model_adaptor {
         }
       }
     }
-
     $args{action} = $set if $set;
-
-    if(my $form = $c->stash->{$id}) {
-      $form->process( %args ) if keys(%args);
-      return $form;
-    }
 
     #If there is a schema model name use it
     ! .($self->has_schema_model_name ? 
@@ -145,8 +145,23 @@ sub build_model_adaptor {
 
   __PACKAGE__->meta->make_immutable;
 
+  package ! .$model_package. q!::IsValid;
+  
+  use Moose;
+  extends 'Catalyst::Model';
+
+  sub ACCEPT_CONTEXT {
+    my ($self, $c, @args) = @_;
+    my $form = $c->model('! .$model_name. q!', @args);
+    return $form->is_valid ? $form : undef;
+  } 
+
+  __PACKAGE__->meta->make_immutable;
+
   !;
 
+  warn $package;
+  
   eval $package or die $@;
 }
 
@@ -155,12 +170,18 @@ sub construct_model_package {
   return $self->_application .'::Model'. ($form_package=~m/${\$self->_application}(::.+$)/)[0];
 }
 
+sub construct_model_name {
+  my ($self, $form_package) = @_;
+  return ($form_package=~m/${\$self->_application}::(.+$)/)[0];
+}
+
 sub expand_modules {
   my ($self, $config) = @_;
   my @model_packages;
   foreach my $form_package (@{$self->form_packages}) {
     my $model_package = $self->construct_model_package($form_package);
-    $self->build_model_adaptor($model_package, $form_package);
+    my $model_name = $self->construct_model_name($form_package);
+    $self->build_model_adaptor($model_package, $form_package, $model_name);
     push @model_packages, $model_package;
   }
 
@@ -229,6 +250,9 @@ in the declared namespace.  So in the above example you should see a model
 'MyApp::Model::Form::Email'.  This is a 'PerRequest' model since it does
 ACCEPT_CONTEXT, it will generate a new instance of the form object once
 per request scope.
+
+It will also create one model with the ::IsValid suffix, which is a shortcut
+to return a form only if its valid and undef otherwise.
 
 You can set model configuration in the normal way, in your application general
 configuration:

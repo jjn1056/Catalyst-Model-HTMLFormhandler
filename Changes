@@ -1,5 +1,11 @@
 # This file documents the revision history for Perl extension Catalyst::Model::Formhandler.
 
+0.004 - 2015-05-03
+  - Fixed a bug when calling the same form over and over causes the form
+    to reprocess params even if you don't ask for any.
+  - Injection new form model ::IsValid that returns the form only if its valid
+    and undef otherwise.
+
 0.003 - 2015-05-03
   - Tweaks to how set set and guess a target action for a form if you do not
     provide one.
