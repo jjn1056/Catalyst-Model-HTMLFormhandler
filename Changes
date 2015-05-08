@@ -1,5 +1,8 @@
 # This file documents the revision history for Perl extension Catalyst::Model::Formhandler.
 
+0.005 - 2015-05-08
+  - Removed debugging output code mistakeningly left in.
+
 0.004 - 2015-05-03
   - Fixed a bug when calling the same form over and over causes the form
     to reprocess params even if you don't ask for any.

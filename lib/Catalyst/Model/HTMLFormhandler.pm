@@ -8,7 +8,7 @@ use Catalyst::Utils;
 extends 'Catalyst::Model';
 with 'Catalyst::Component::ApplicationAttribute';
 
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 has 'roles' => (
   is=>'ro',
@@ -139,7 +139,7 @@ sub build_model_adaptor {
 
   sub _build_per_request_form {
     my ($self, %args) = @_;
-    my $composed = Moose::Util::with_traits( '! .$form_package. q!' , (! .$roles.q!));
+    my $composed = Moose::Util::with_traits( '! .$form_package. q!' , (! .($roles||'').q!));
     my $form = $composed->new(%args);
   }
 
@@ -160,8 +160,6 @@ sub build_model_adaptor {
 
   !;
 
-  warn $package;
-  
   eval $package or die $@;
 }
 
