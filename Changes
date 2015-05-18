@@ -1,5 +1,8 @@
 # This file documents the revision history for Perl extension Catalyst::Model::Formhandler.
 
+0.006 - 2015-05-18
+  - Tweaked the test cases a bit and added a missing test dependency
+
 0.005 - 2015-05-08
   - Removed debugging output code mistakeningly left in.
 

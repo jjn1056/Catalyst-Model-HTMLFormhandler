@@ -4,18 +4,21 @@ use Scalar::Util qw/refaddr/;
 
 BEGIN {
   package MyApp::Role::Test;
+  $INC{'MyApp/Role/Test.pm'} = __FILE__;
 
   use Moose::Role;
 
   sub TO_JSON { 'json' }
 
   package MyApp::Role::TestOne;
+  $INC{'MyApp/Role/TestOne.pm'} = __FILE__;
 
   use Moose::Role;
 
   sub TO_JSON_2 { 'json2' }
 
   package MyApp::Form::Email;
+  $INC{'MyApp/Form/Email.pm'} = __FILE__;
 
   use HTML::FormHandler::Moose;
 
@@ -30,6 +33,7 @@ BEGIN {
     required => 1);
 
   package MyApp::Form::User;
+  $INC{'MyApp/Form/User.pm'} = __FILE__;
 
   use HTML::FormHandler::Moose;
 
