@@ -8,7 +8,7 @@ use Catalyst::Utils;
 extends 'Catalyst::Model';
 with 'Catalyst::Component::ApplicationAttribute';
 
-our $VERSION = '0.006';
+our $VERSION = '0.007';
 
 has 'roles' => (
   is=>'ro',
@@ -59,6 +59,9 @@ has 'no_auto_process' => (is=>'ro', isa=>'Bool', required=>1, default=>0);
 sub build_model_adaptor {
   my ($self, $model_package, $form_package, $model_name) = @_;
   my $roles = join( ',', map { "'$_'"} @{$self->roles||[]}) if $self->has_roles;
+
+  my $schema_args = $self->has_schema_model_name ?
+    '$args{schema} = $c->model("'.$self->schema_model_name.'");' : '';
 
   my $package = "package $model_package;\n" . q(
   
@@ -114,9 +117,8 @@ sub build_model_adaptor {
     $args{action} = $set if $set;
 
     #If there is a schema model name use it
-    ! .($self->has_schema_model_name ? 
-      '$args{schema} = $c->model("'.$self->schema_model_name..'")': ''). q!
-    
+    !. $schema_args .q!
+
     # If its a POST, set the request params (you can always override 
     # later.
     if($c->req->method=~m/post/i) {
@@ -160,7 +162,7 @@ sub build_model_adaptor {
 
   !;
 
-  eval $package or die $@;
+  eval $package or die "Trouble creating model: \n\n$@\n\n$package";
 }
 
 sub construct_model_package {
