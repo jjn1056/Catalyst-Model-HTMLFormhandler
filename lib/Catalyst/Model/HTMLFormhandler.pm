@@ -192,7 +192,7 @@ __PACKAGE__->meta->make_immutable;
 
 =head1 NAME
 
-Catalyst::Model::HTMLFormhandler - Proxy a directory of HTML::Formhandler forms
+Catalyst::Model::HTMLFormhandler - Proxy a directory of HTML::FormHandler forms
 
 =head1 SYNOPSIS
 
@@ -216,7 +216,7 @@ And then using it in a controller:
 
 =head1 DESCRIPTION
 
-Assuming a project namespace 'MyApp::Form' with L<HTML::Formhandler> forms. like
+Assuming a project namespace 'MyApp::Form' with L<HTML::FormHandler> forms. like
 the following example:
 
   package MyApp::Form::Email;
@@ -357,7 +357,7 @@ John Napiorkowski L<email:jjnapiork@cpan.org>
   
 =head1 SEE ALSO
  
-L<Catalyst>, L<Catalyst::Model>, L<HTML::Formhandler>, L<Module::Pluggable>
+L<Catalyst>, L<Catalyst::Model>, L<HTML::FormHandler>, L<Module::Pluggable>
 
 =head1 COPYRIGHT & LICENSE
  
