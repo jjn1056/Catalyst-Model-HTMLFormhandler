@@ -8,7 +8,7 @@ use Catalyst::Utils;
 extends 'Catalyst::Model';
 with 'Catalyst::Component::ApplicationAttribute';
 
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 has 'roles' => (
   is=>'ro',
@@ -70,10 +70,18 @@ sub build_model_adaptor {
   use ). $form_package . q! ;
   extends 'Catalyst::Model';
 
+  sub COMPONENT {
+    my ($class, $app, @args) = @_;
+    # Don't call new, we don't want to merge config now since this is a per-request
+    # model, that way we call for new configuration each time we bless (that way we
+    # can use models that are context sensitive.)
+
+    return bless +{}, $class;
+  }
+
   sub ACCEPT_CONTEXT {
     my ($self, $c, @args) = @_;
     my $id = '__'. ref $self;
-    my %config_args = %$self;
 
     # If there are odd args, that means the first one is either the item object
     # or item_id (assuming someone is using the DBIC model trait.
@@ -92,7 +100,7 @@ sub build_model_adaptor {
     } else {
       %args = @args;
     }
-
+    
     #If an action arg is passed and its a Catalyst::Action, make it a URL
     if(my $action = delete $args{action_from}) {
       my @action = ref $action eq 'ARRAY' ? @$action : ($action);
@@ -103,7 +111,6 @@ sub build_model_adaptor {
       $form->process( %args ) if keys(%args);
       return $form;
     }
-
     my $set = 0;
     unless($args{action}) {
       foreach my $action ($c->controller->get_action_methods) {
@@ -130,7 +137,8 @@ sub build_model_adaptor {
     delete($args{no_auto_process}) : ! .$self->no_auto_process. q!;
 
     $c->stash->{$id} ||= do {
-      my $form = $self->_build_per_request_form(%args, %config_args, ctx=>$c);
+      %args = %{$self->merge_config_hashes($c->config_for($self->catalyst_component_name), \%args)};
+      my $form = $self->_build_per_request_form(%args, ctx=>$c);
       $form->process() if
         $c->req->method=~m/post/i && \!$no_auto_process;
       $form;

@@ -1,5 +1,10 @@
 # This file documents the revision history for Perl extension Catalyst::Model::Formhandler.
 
+0.008 - 2016 27-19
+  - When creating the form, be sure to grab configuration since this
+    is a per request model and that allows for configuration that might
+    be context dependent.
+
 0.007 - 2015-11-12
   - Better error message if the injected model has a syntax error.
   - fixed schema_model_name
