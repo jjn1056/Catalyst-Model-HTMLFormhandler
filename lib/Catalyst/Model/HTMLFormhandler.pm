@@ -8,7 +8,7 @@ use Catalyst::Utils;
 extends 'Catalyst::Model';
 with 'Catalyst::Component::ApplicationAttribute';
 
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 has 'roles' => (
   is=>'ro',

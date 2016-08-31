@@ -1,5 +1,9 @@
 # This file documents the revision history for Perl extension Catalyst::Model::Formhandler.
 
+0.009 - 2016 08-31
+  - Fixed incorrect dependency name
+  - Generate meta.json
+
 0.008 - 2016 27-19
   - When creating the form, be sure to grab configuration since this
     is a per request model and that allows for configuration that might
